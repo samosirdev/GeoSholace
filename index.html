@@ -99,7 +99,13 @@
             <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex justify-center overflow-x-auto">
                 <div class="text-center font-serif text-slate-700 whitespace-nowrap">
                     <div class="text-xs text-slate-500 mb-2">Rumus Umum:</div>
-                    <span class="text-lg">Area = &frac12; | &sum; (X<sub>i</sub> &times; Y<sub>i+1</sub>) - (X<sub>i+1</sub> &times; Y<sub>i</sub>) |</span>
+                   <span class="text-lg">
+A = 1/2 |
+(x<sub>1</sub>y<sub>2</sub> + x<sub>2</sub>y<sub>3</sub> + ... + x<sub>n</sub>y<sub>1</sub>)
+−
+(y<sub>1</sub>x<sub>2</sub> + y<sub>2</sub>x<sub>3</sub> + ... + y<sub>n</sub>x<sub>1</sub>)
+|
+</span>
                 </div>
             </div>
 
@@ -241,18 +247,20 @@
             `;
         }
 
-        const finalArea = Math.abs(areaCalculus / 2);
+     const finalArea = Math.round(Math.abs(areaCalculus / 2));
         const areaHa = finalArea / 10000;
 
         // 3. Perbarui UI Tampilan Utama
-        document.getElementById('area-display').innerHTML = `${finalArea.toLocaleString('id-ID', {maximumFractionDigits:2})} <span class="text-lg font-light text-slate-400">m²</span>`;
-        document.getElementById('area-ha').innerText = `${areaHa.toLocaleString('id-ID', {maximumFractionDigits:5})} ha`;
+document.getElementById('area-display').innerHTML =
+`${finalArea.toLocaleString('id-ID')} <span class="text-lg font-light text-slate-400">m²</span>`;
+ document.getElementById('area-ha').innerText = `${areaHa.toLocaleString('id-ID', {maximumFractionDigits:5})} ha`;
         
         // 4. Perbarui DOM untuk Proses
         document.getElementById('table-coords').innerHTML = tableHTML;
         document.getElementById('cross-products').innerHTML = crossHTML;
         document.getElementById('total-sum').innerText = areaCalculus.toFixed(3);
-        document.getElementById('final-calc').innerText = `${finalArea.toLocaleString('id-ID', {maximumFractionDigits:2})} m²`;
+     document.getElementById('final-calc').innerText =
+`${finalArea.toLocaleString('id-ID')} m²`;
 
         // Aktifkan Tombol
         document.getElementById('btn-process').disabled = false;
