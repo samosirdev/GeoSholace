@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geo-Shoelace | Polygon Area Calculator</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <style>
+        #map { height: 500px; width: 100%; border-radius: 12px; }
+        .math-font { font-family: 'Courier New', Courier, monospace; }
+        #search-results { 
+            position: absolute; 
+            z-index: 2000; 
+            width: 100%; 
+            background: white; 
+            color: #1e293b; 
+            border-radius: 0.75rem;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+        }
+        /* Transisi untuk accordion proses hitung */
+        #process-container {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out;
+            opacity: 0;
+        }
+        #process-container.show {
+            max-height: 2000px; /* Angka sembarang yang cukup besar */
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<header class="bg-slate-900 text-white p-4 shadow-xl">
+    <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-2">
+            <span class="bg-emerald-500 p-1 rounded text-xl font-black shadow-lg shadow-emerald-500/20 text-center w-8 h-8 flex items-center justify-center">⬡</span>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight leading-none">GEO-SHOELACE</h1>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Metode Teorema Green</p>
+            </div>
+        </div>
+        
+        <div class="relative w-full md:w-96">
+            <label for="search-input" class="text-[10px] font-bold text-emerald-400 uppercase mb-1 block ml-2">
+                Cari Wilayah (Referensi OSM):
+            </label>
+            <div class="relative">
+                <input type="text" id="search-input" 
+                    placeholder="Ketik lokasi..." 
+                    class="w-full px-5 py-2.5 rounded-full text-sm text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner border border-slate-700">
+                <span class="absolute right-4 top-3 text-slate-400">🔍</span>
+            </div>
+            <div id="search-results" class="hidden absolute left-0 right-0 bg-white mt-2 rounded-xl overflow-hidden border border-slate-200 shadow-2xl z-[2000]"></div>
+        </div>
+    </div>
+</header>
+
+<main class="container mx-auto py-6 px-4">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="lg:col-span-2 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Peta Wilayah (OSM)</h3>
+                <div id="coords-display" class="text-[10px] font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-full">Lat: - | Lng: -</div>
+                <button onclick="resetAll()" class="text-xs bg-red-50 text-red-600 px-4 py-1 rounded-full border border-red-100 hover:bg-red-600 hover:text-white transition-all">
+                    Reset
+                </button>
+            </div>
+            <div id="map"></div>
+        </div>
+
+        <div class="space-y-6">
+            <div class="bg-slate-900 text-emerald-400 p-6 rounded-2xl shadow-inner border border-slate-800 flex flex-col justify-center h-full min-h-[250px]">
+                <h3 class="text-xs font-bold text-slate-500 uppercase mb-4">Hasil Luas (Teorema Green)</h3>
+                <div id="area-display" class="text-5xl font-black mb-2">0.00 <span class="text-lg font-light text-slate-400">m²</span></div>
+                <div id="area-ha" class="text-sm text-slate-400 mb-6">0.00000 ha</div>
+                
+                <button id="btn-process" onclick="toggleProcess()" disabled class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-emerald-900/20 text-sm">
+                    Lihat Rumus & Proses Hitung
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="process-container" class="mt-6 bg-white rounded-2xl shadow-sm border border-slate-200">
+        <div class="p-6">
+            <h4 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <span class="w-2 h-5 bg-emerald-500 rounded-full"></span> Detail Perhitungan Shoelace (Metode Tali Sepatu)
+            </h4>
+            
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex justify-center overflow-x-auto">
+                <div class="text-center font-serif text-slate-700 whitespace-nowrap">
+                    <div class="text-xs text-slate-500 mb-2">Rumus Umum:</div>
+                   <span class="text-lg">
+A = 1/2 |
+(x<sub>1</sub>y<sub>2</sub> + x<sub>2</sub>y<sub>3</sub> + ... + x<sub>n</sub>y<sub>1</sub>)
+−
+(y<sub>1</sub>x<sub>2</sub> + y<sub>2</sub>x<sub>3</sub> + ... + y<sub>n</sub>x<sub>1</sub>)
+|
+</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <h5 class="text-xs font-bold text-slate-500 uppercase mb-3">1. Konversi Geografis ke Kartesius (Meter)</h5>
+                    <div class="overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600">
+                                <tr>
+                                    <th class="p-3">Titik (P)</th>
+                                    <th class="p-3">X (meter)</th>
+                                    <th class="p-3">Y (meter)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-coords" class="bg-white">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <h5 class="text-xs font-bold text-slate-500 uppercase mb-3">2. Perkalian Silang (Cross Product)</h5>
+                    <div class="bg-slate-900 rounded-lg border border-slate-800 p-4 text-xs font-mono">
+                        <div id="cross-products" class="space-y-1 max-h-64 overflow-y-auto pr-2 custom-scrollbar text-slate-300">
+                            </div>
+                        <div class="border-t border-slate-700 mt-4 pt-3 space-y-2">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Total Sum (&Sigma;):</span>
+                                <span id="total-sum">0.00</span>
+                            </div>
+                            <div class="flex justify-between text-emerald-400 font-bold text-sm">
+                                <span>Area = |&Sigma;| &divide; 2</span>
+                                <span id="final-calc">0.00 m²</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    let map, drawnItems;
+
+    window.onload = () => {
+        initMap();
+        setupSearch();
+    };
+
+    function initMap() {
+        map = L.map('map').setView([-6.175, 106.827], 16);
+        
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }).addTo(map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CartoDB',
+            pane: 'shadowPane' 
+        }).addTo(map);
+
+        drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        
+        const drawControl = new L.Control.Draw({
+            edit: { featureGroup: drawnItems },
+            draw: {
+                polygon: { 
+                    allowIntersection: false, 
+                    shapeOptions: { 
+                        color: '#10b981', 
+                        fillOpacity: 0.3, 
+                        weight: 3
+                    } 
+                },
+                polyline: false, circle: false, rectangle: false, marker: false, circlemarker: false
+            }
+        });
+        map.addControl(drawControl);
+
+        map.on(L.Draw.Event.CREATED, (e) => {
+            const layer = e.layer;
+            drawnItems.clearLayers();
+            drawnItems.addLayer(layer);
+            calculateArea(layer);
+        });
+        
+        map.on('draw:edited', (e) => {
+            e.layers.eachLayer(layer => {
+                calculateArea(layer);
+            });
+        });
+    }
+
+    function calculateArea(layer) {
+        const latlngs = layer.getLatLngs()[0];
+        const center = layer.getBounds().getCenter();
+        document.getElementById('coords-display').innerText = `Lat: ${center.lat.toFixed(6)} | Lng: ${center.lng.toFixed(6)}`;
+
+        // 1. Konversi Proyeksi (WGS84) ke Cartesian lokal (Meter)
+        const R = 6371000; // Jari-jari ekuatorial Bumi
+        const origin = latlngs[0];
+        const pts = latlngs.map(p => ({
+            x: (p.lng - origin.lng) * (Math.PI / 180) * R * Math.cos(origin.lat * Math.PI / 180),
+            y: (p.lat - origin.lat) * (Math.PI / 180) * R
+        }));
+
+        let areaCalculus = 0;
+        let tableHTML = '';
+        let crossHTML = '';
+
+        // 2. Kalkulasi Luas dengan Metode Shoelace (Green's Theorem Diskret)
+        for (let i = 0; i < pts.length; i++) {
+            let j = (i + 1) % pts.length; // Mengambil titik selanjutnya (loop kembali ke awal)
+            
+            let term1 = pts[i].x * pts[j].y;
+            let term2 = pts[j].x * pts[i].y;
+            let diff = term1 - term2;
+            areaCalculus += diff;
+
+            // Generate Baris Tabel Koordinat
+            tableHTML += `
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                    <td class="p-3 font-bold text-slate-500">P${i+1}</td>
+                    <td class="p-3 math-font">${pts[i].x.toFixed(3)}</td>
+                    <td class="p-3 math-font">${pts[i].y.toFixed(3)}</td>
+                </tr>
+            `;
+
+            // Generate Baris Proses Perkalian Silang
+            const sign = diff >= 0 ? '+' : '';
+            crossHTML += `
+                <div class="flex justify-between border-b border-dashed border-slate-700 py-2">
+                    <span>(X<sub>${i+1}</sub>Y<sub>${j+1}</sub> - X<sub>${j+1}</sub>Y<sub>${i+1}</sub>)</span>
+                    <span class="${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${sign}${diff.toFixed(3)}</span>
+                </div>
+            `;
+        }
+
+     const finalArea = Math.round(Math.abs(areaCalculus / 2));
+        const areaHa = finalArea / 10000;
+
+        // 3. Perbarui UI Tampilan Utama
+document.getElementById('area-display').innerHTML =
+`${finalArea.toLocaleString('id-ID')} <span class="text-lg font-light text-slate-400">m²</span>`;
+ document.getElementById('area-ha').innerText = `${areaHa.toLocaleString('id-ID', {maximumFractionDigits:5})} ha`;
+        
+        // 4. Perbarui DOM untuk Proses
+        document.getElementById('table-coords').innerHTML = tableHTML;
+        document.getElementById('cross-products').innerHTML = crossHTML;
+        document.getElementById('total-sum').innerText = areaCalculus.toFixed(3);
+     document.getElementById('final-calc').innerText =
+`${finalArea.toLocaleString('id-ID')} m²`;
+
+        // Aktifkan Tombol
+        document.getElementById('btn-process').disabled = false;
+        
+        // Otomatis buka jika sudah diklik sebelumnya, tutup jika baru digambar
+        document.getElementById('process-container').classList.remove('show');
+        document.getElementById('btn-process').innerText = "Lihat Rumus & Proses Hitung";
+    }
+
+    function toggleProcess() {
+        const container = document.getElementById('process-container');
+        const btn = document.getElementById('btn-process');
+        
+        if (container.classList.contains('show')) {
+            container.classList.remove('show');
+            btn.innerText = "Lihat Rumus & Proses Hitung";
+        } else {
+            container.classList.add('show');
+            btn.innerText = "Sembunyikan Proses Hitung";
+            // Scroll sedikit ke bawah untuk melihat proses
+            setTimeout(() => {
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+        }
+    }
+
+    function setupSearch() {
+        const input = document.getElementById('search-input');
+        const results = document.getElementById('search-results');
+        let debounceTimer;
+
+        const performSearch = async (query) => {
+            if (query.length < 3) {
+                results.classList.add('hidden');
+                return;
+            }
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=6&addressdetails=1&countrycodes=id`;
+                const res = await fetch(url, { headers: { 'Accept-Language': 'id' } });
+                const data = await res.json();
+                
+                results.innerHTML = '';
+                if (data && data.length > 0) {
+                    results.classList.remove('hidden');
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'p-3 hover:bg-emerald-50 cursor-pointer text-sm border-b border-slate-100 last:border-0 transition-colors';
+                        
+                        const displayName = item.display_name.split(',').slice(0, 3).join(',');
+                        const subName = item.display_name.split(',').slice(3).join(',');
+
+                        div.innerHTML = `
+                            <div class="font-semibold text-slate-700">${item.name || item.display_name.split(',')[0]}</div>
+                            <div class="text-[10px] text-slate-500 truncate">${displayName}</div>
+                            <div class="text-[9px] text-slate-400 italic truncate">${subName}</div>
+                        `;
+                        
+                        div.onclick = () => {
+                            const lat = parseFloat(item.lat);
+                            const lon = parseFloat(item.lon);
+                            map.flyTo([lat, lon], 18, { animate: true, duration: 1.5 });
+                            input.value = item.display_name.split(',')[0];
+                            results.classList.add('hidden');
+                        };
+                        results.appendChild(div);
+                    });
+                } else {
+                    results.classList.add('hidden');
+                }
+            } catch (e) { 
+                console.error("Search Error:", e); 
+            }
+        };
+
+        input.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => performSearch(e.target.value), 400);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && results.firstChild) {
+                results.firstChild.click();
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !results.contains(e.target)) {
+                results.classList.add('hidden');
+            }
+        });
+    }
+
+    function resetAll() {
+        drawnItems.clearLayers();
+        document.getElementById('area-display').innerHTML = `0.00 <span class="text-lg font-light text-slate-400">m²</span>`;
+        document.getElementById('area-ha').innerText = `0.00000 ha`;
+        document.getElementById('coords-display').innerText = `Lat: - | Lng: -`;
+        
+        document.getElementById('process-container').classList.remove('show');
+        const btn = document.getElementById('btn-process');
+        btn.disabled = true;
+        btn.innerText = "Lihat Rumus & Proses Hitung";
+    }
+</script>
+</body>
+</html>
